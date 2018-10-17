@@ -22,13 +22,11 @@ exports.postOrder = functions.https.onRequest((request, response) => {
     "friday": array[4]
   }
 
-  return admin.database().ref('weeklyMenu/days/monday/' + array[0]).once('value', (snapshot) => {
-    var foundMenu = snapshot.val();
-    console.log(foundMenu);
-    response.send(foundMenu);
-  });
-  // response.send(test)
+  response.send(days)
 
-  // functions.database.ref('/orders/test').onWrite(async (change) => {
+  // return admin.database().ref('weeklyMenu/days/monday/' + array[0]).once('value', (snapshot) => {
+  //   var foundMenu = snapshot.val();
+  //   console.log(foundMenu);
+  //   response.send(foundMenu);
   // });
 });
