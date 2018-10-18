@@ -29,17 +29,38 @@ exports.postOrder = functions.https.onRequest((request, response) => {
   }
 
   // construct the db object without undefined values for days names
-  var days = {}
-  if (initialDays.monday.toString() !== nothing.toString()) { days.monday = initialDays.monday }
-  if (initialDays.tuesday.toString() !== nothing.toString()) { days.tuesday = initialDays.tuesday }
-  if (initialDays.wednesday.toString() !== nothing.toString()) { days.wednesday = initialDays.wednesday }
-  if (initialDays.thursday.toString() !== nothing.toString()) { days.thursday = initialDays.thursday }
-  if (initialDays.friday.toString() !== nothing.toString()) { days.friday = initialDays.friday }
+  var weekOrder = {}
+  if (initialDays.monday.toString() !== nothing.toString()) { weekOrder.monday = initialDays.monday }
+  if (initialDays.tuesday.toString() !== nothing.toString()) { weekOrder.tuesday = initialDays.tuesday }
+  if (initialDays.wednesday.toString() !== nothing.toString()) { weekOrder.wednesday = initialDays.wednesday }
+  if (initialDays.thursday.toString() !== nothing.toString()) { weekOrder.thursday = initialDays.thursday }
+  if (initialDays.friday.toString() !== nothing.toString()) { weekOrder.friday = initialDays.friday }
 
-  var ordersInDb = admin.database().ref('orders/' + user)
-  ordersInDb.set(days)
+  admin.database().ref('weeklyMenu/days').once('value', (snapshot) => {
+    var days = snapshot.val();
+    var userOrder = {}
 
-  response.send(days)
+    Object.keys(weekOrder).forEach(dayName => {
+      var menus = weekOrder[dayName]
+
+      var ordersForDay = []
+      menus.forEach(menuName => {
+        var dayMenu = days[dayName][menuName]
+        if (!dayMenu) { return }
+
+        ordersForDay.push(dayMenu)
+      })
+
+      if (ordersForDay.length > 0) {
+        userOrder[dayName] = ordersForDay
+      }
+    })
+
+    var ordersInDb = admin.database().ref('orders/' + user)
+    ordersInDb.set(userOrder)
+
+    response.send(userOrder)
+  });
 });
 
 exports.deleteOrders = functions.https.onRequest((request, response) => {
@@ -72,6 +93,14 @@ exports.deleteUserOrder = functions.https.onRequest((request, response) => {
   response.send("Order deleted for " + user)
 });
 
+function userOrdersFor(user) {
+  return new Promise((completion) => {
+    admin.database().ref('orders/' + user).once('value', (snapshot) => {
+      completion(snapshot.val())
+    })
+  });
+}
+
 exports.getUserOrders = functions.https.onRequest((request, response) => {
   if (request.method !== "GET") {
     response.send("Are you sure you know what you're doing?")
@@ -84,39 +113,105 @@ exports.getUserOrders = functions.https.onRequest((request, response) => {
     return
   }
 
-  admin.database().ref('orders/' + user).once('value', (snapshot) => {
-    var order = snapshot.val();
-
-    if (!order) {
+  userOrdersFor(user).then(userOrder => {
+    if (!userOrder) {
       response.send(user + " has no orders")
       return
     }
 
-    admin.database().ref('weeklyMenu/days').once('value', (snapshot) => {
-      var days = snapshot.val();
-      var orders = {}
-
-      Object.keys(order).forEach(dayName => {
-        var menus = order[dayName]
-
-        var ordersForDay = []
-        menus.forEach(menuName => {
-          var dayMenu = days[dayName][menuName]
-          if (!dayMenu) { return }
-
-          ordersForDay.push({
-            "letter": dayMenu.menu.title,
-            "course": dayMenu.course.name,
-            "price": dayMenu.course.price
-          })
-        })
-
-        if (ordersForDay.length > 0) {
-          orders[dayName] = ordersForDay
+    var filteredOrders = {}
+    Object.keys(userOrder).forEach(dayName => {
+      var allOrdersForDay = userOrder[dayName].map(day => {
+        return {
+          "menu": day.menu.title,
+          "dish": day.course.name,
+          "price": day.course.price
         }
       })
 
-      response.send(orders)
-    });
+      filteredOrders[dayName] = allOrdersForDay
+    })
+
+    return response.send(filteredOrders)
+  }).catch(reason => {
+    return response.send("No orders found for " + user)
+  });
+});
+
+exports.getUserTotal = functions.https.onRequest((request, response) => {
+  if (request.method !== "GET") {
+    response.send("Are you sure you know what you're doing?")
+    return
+  }
+
+  var user = request.query.user
+  if (!user) {
+    response.send("User not specified")
+    return
+  }
+
+  userOrdersFor(user).then(userOrder => {
+    if (!userOrder) {
+      response.send(user + " has no orders")
+      return
+    }
+
+    var prices = []
+    Object.keys(userOrder).forEach(dayName => {
+      var dayPrices = userOrder[dayName].map(day => {
+        return day.course.price
+      })
+
+      prices.push(dayPrices)
+    })
+
+    var flattenedPrices = [].concat.apply([], prices)
+    flattenedPrices = flattenedPrices.map(price => parseFloat(price))
+    var price = flattenedPrices.reduce((a, b) => a + b, 0);
+
+    return response.send({"total": price})
+  }).catch(reason => {
+    return response.send("No orders found for " + user)
+  });
+});
+
+exports.getUserToday = functions.https.onRequest((request, response) => {
+  if (request.method !== "GET") {
+    response.send("Are you sure you know what you're doing?")
+    return
+  }
+
+  var user = request.query.user
+  if (!user) {
+    response.send("User not specified")
+    return
+  }
+
+  var date = new Date()
+  var dayIndex = date.getDay()
+  var days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
+
+  var dayName = days[dayIndex]
+
+  admin.database().ref('orders/' + user + "/" + dayName).once('value', (snapshot) => {
+    var userOrderForDay = snapshot.val()
+    if (!userOrderForDay) {
+      response.send(user + " has no order for " + dayName)
+      return
+    }
+
+    var allOrdersForDay = userOrderForDay.map(day => {
+      return {
+        "menu": day.menu.title,
+        "dish": day.course.name
+      }
+    })
+
+    var todayOrder = {}
+    todayOrder[dayName] = allOrdersForDay
+
+    response.send(todayOrder)
+  }).catch(reason => {
+    return response.send("No orders found for " + user)
   });
 });
