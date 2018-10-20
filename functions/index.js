@@ -39,6 +39,8 @@ exports.postOrder = functions.https.onRequest((request, response) => {
   admin.database().ref('weeklyMenu/days').once('value', (snapshot) => {
     var days = snapshot.val();
     var userOrder = {}
+    userOrder["days"] = {}
+    var prices = []
 
     Object.keys(weekOrder).forEach(dayName => {
       var menus = weekOrder[dayName]
@@ -49,12 +51,19 @@ exports.postOrder = functions.https.onRequest((request, response) => {
         if (!dayMenu) { return }
 
         ordersForDay.push(dayMenu)
+        prices.push(dayMenu.course.price)
       })
 
       if (ordersForDay.length > 0) {
-        userOrder[dayName] = ordersForDay
+        userOrder["days"][dayName] = ordersForDay
       }
     })
+
+    var flattenedPrices = [].concat.apply([], prices)
+    flattenedPrices = flattenedPrices.map(price => parseFloat(price))
+    var price = flattenedPrices.reduce((a, b) => a + b, 0);
+
+    userOrder["total"] = price
 
     var ordersInDb = admin.database().ref('orders/' + user)
     ordersInDb.set(userOrder)
@@ -93,14 +102,6 @@ exports.deleteUserOrder = functions.https.onRequest((request, response) => {
   response.send("Order deleted for " + user)
 });
 
-function userOrdersFor(user) {
-  return new Promise((completion) => {
-    admin.database().ref('orders/' + user).once('value', (snapshot) => {
-      completion(snapshot.val())
-    })
-  });
-}
-
 exports.getUserOrders = functions.https.onRequest((request, response) => {
   if (request.method !== "GET") {
     response.send("Are you sure you know what you're doing?")
@@ -113,15 +114,17 @@ exports.getUserOrders = functions.https.onRequest((request, response) => {
     return
   }
 
-  userOrdersFor(user).then(userOrder => {
-    if (!userOrder) {
+  admin.database().ref('orders/' + user).once('value', (snapshot) => {
+    var userOrder = snapshot.val()
+    var days = userOrder.days
+    if (!userOrder || !days) {
       response.send(user + " has no orders")
       return
     }
 
     var filteredOrders = {}
-    Object.keys(userOrder).forEach(dayName => {
-      var allOrdersForDay = userOrder[dayName].map(day => {
+    Object.keys(days).forEach(dayName => {
+      var allOrdersForDay = days[dayName].map(day => {
         return {
           "menu": day.menu.title,
           "dish": day.course.name,
@@ -132,10 +135,13 @@ exports.getUserOrders = functions.https.onRequest((request, response) => {
       filteredOrders[dayName] = allOrdersForDay
     })
 
-    return response.send(filteredOrders)
-  }).catch(reason => {
-    return response.send("No orders found for " + user)
-  });
+    var responseObject = {
+      "total": userOrder.total,
+      "days": filteredOrders
+    }
+
+    response.send(responseObject)
+  })
 });
 
 exports.getUserTotal = functions.https.onRequest((request, response) => {
@@ -150,29 +156,10 @@ exports.getUserTotal = functions.https.onRequest((request, response) => {
     return
   }
 
-  userOrdersFor(user).then(userOrder => {
-    if (!userOrder) {
-      response.send(user + " has no orders")
-      return
-    }
-
-    var prices = []
-    Object.keys(userOrder).forEach(dayName => {
-      var dayPrices = userOrder[dayName].map(day => {
-        return day.course.price
-      })
-
-      prices.push(dayPrices)
-    })
-
-    var flattenedPrices = [].concat.apply([], prices)
-    flattenedPrices = flattenedPrices.map(price => parseFloat(price))
-    var price = flattenedPrices.reduce((a, b) => a + b, 0);
-
-    return response.send({"total": price})
-  }).catch(reason => {
-    return response.send("No orders found for " + user)
-  });
+  admin.database().ref('orders/' + user + '/total').once('value', (snapshot) => {
+    var price = snapshot.val()
+    response.send({"total": price})
+  })
 });
 
 exports.getUserToday = functions.https.onRequest((request, response) => {
@@ -193,7 +180,7 @@ exports.getUserToday = functions.https.onRequest((request, response) => {
 
   var dayName = days[dayIndex]
 
-  admin.database().ref('orders/' + user + "/" + dayName).once('value', (snapshot) => {
+  admin.database().ref('orders/' + user + "/days/" + dayName).once('value', (snapshot) => {
     var userOrderForDay = snapshot.val()
     if (!userOrderForDay) {
       response.send(user + " has no order for " + dayName)
@@ -211,7 +198,31 @@ exports.getUserToday = functions.https.onRequest((request, response) => {
     todayOrder[dayName] = allOrdersForDay
 
     response.send(todayOrder)
-  }).catch(reason => {
-    return response.send("No orders found for " + user)
-  });
+  })
+});
+
+exports.getAllOrdersTotal = functions.https.onRequest((request, response) => {
+  if (request.method !== "GET") {
+    response.send("Are you sure you know what you're doing?")
+    return
+  }
+
+  admin.database().ref('orders').once('value', (snapshot) => {
+    var orders = snapshot.val()
+    if (!orders) {
+      response.send("No orders")
+      return
+    }
+
+    var totals = 0
+    Object.keys(orders).forEach(user => {
+      var userTotal = orders[user]["total"]
+      if (userTotal) {
+          totals = totals + userTotal
+      }
+    })
+
+    var responseObject = { "totals": totals }
+    response.send(responseObject)
+  })
 });
