@@ -72,7 +72,7 @@ exports.postOrder = functions.https.onRequest((request, response) => {
   });
 });
 
-exports.deleteOrders = functions.https.onRequest((request, response) => {
+exports.deleteAllOrders = functions.https.onRequest((request, response) => {
   if (request.method !== "DELETE") {
     response.send("Are you sure you know what you're doing?")
     return
@@ -224,5 +224,50 @@ exports.getAllOrdersTotal = functions.https.onRequest((request, response) => {
 
     var responseObject = { "totals": totals }
     response.send(responseObject)
+  })
+});
+
+exports.getAllOrders = functions.https.onRequest((request, response) => {
+  if (request.method !== "GET") {
+    response.send("Are you sure you know what you're doing?")
+    return
+  }
+
+  admin.database().ref('orders').once('value', (snapshot) => {
+    var orders = snapshot.val()
+    if (!orders) {
+      response.send("No orders")
+      return
+    }
+
+    var responseObject = {}
+    Object.keys(orders).forEach(user => {
+      var userObject = orders[user]["days"]
+      Object.keys(userObject).forEach(daysKey => {
+        var day = userObject[daysKey]
+        if (!day) { return }
+
+        var userOrders = day.map(dayOrder => { return dayOrder.menu.title })
+
+        if (!responseObject[daysKey]) {
+          responseObject[daysKey] = userOrders
+        } else {
+          responseObject[daysKey] = responseObject[daysKey].concat(userOrders)
+        }
+
+        responseObject[daysKey] = responseObject[daysKey].sort()
+      })
+    })
+
+    var nonDuplicates = {}
+    Object.keys(responseObject).forEach(orderForDay => {
+      var menus = responseObject[orderForDay]
+      var count = {};
+      menus.forEach(index => { count[index] = (count[index] || 0) + 1})
+
+      nonDuplicates[orderForDay] = count
+    })
+
+    response.send(nonDuplicates)
   })
 });
