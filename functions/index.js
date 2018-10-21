@@ -65,20 +65,22 @@ exports.postOrder = functions.https.onRequest((request, response) => {
 
     userOrder["total"] = price
 
-    var ordersInDb = admin.database().ref('orders/' + user)
+    var weekNumber = getWeekNumber(new Date())
+    var ordersInDb = admin.database().ref('orders/' + weekNumber + '/' + user)
     ordersInDb.set(userOrder)
 
     response.send(userOrder)
   });
 });
 
-exports.deleteAllOrders = functions.https.onRequest((request, response) => {
+exports.deleteLatestOrders = functions.https.onRequest((request, response) => {
   if (request.method !== "DELETE") {
     response.send("Are you sure you know what you're doing?")
     return
   }
 
-  var ordersInDb = admin.database().ref('orders')
+  var weekNumber = getWeekNumber(new Date())
+  var ordersInDb = admin.database().ref('orders/' + weekNumber)
   ordersInDb.set({})
 
   response.send("Orders deleted")
@@ -96,7 +98,8 @@ exports.deleteUserOrder = functions.https.onRequest((request, response) => {
     return
   }
 
-  var ordersInDb = admin.database().ref('orders/' + user)
+  var weekNumber = getWeekNumber(new Date())
+  var ordersInDb = admin.database().ref('orders/' + weekNumber + '/' + user)
   ordersInDb.set({})
 
   response.send("Order deleted for " + user)
@@ -114,7 +117,8 @@ exports.getUserOrders = functions.https.onRequest((request, response) => {
     return
   }
 
-  admin.database().ref('orders/' + user).once('value', (snapshot) => {
+  var weekNumber = getWeekNumber(new Date())
+  admin.database().ref('orders/' + weekNumber + '/' + user).once('value', (snapshot) => {
     var userOrder = snapshot.val()
     var days = userOrder.days
     if (!userOrder || !days) {
@@ -156,7 +160,8 @@ exports.getUserTotal = functions.https.onRequest((request, response) => {
     return
   }
 
-  admin.database().ref('orders/' + user + '/total').once('value', (snapshot) => {
+  var weekNumber = getWeekNumber(new Date())
+  admin.database().ref('orders/' + weekNumber + '/' + user + '/total').once('value', (snapshot) => {
     var price = snapshot.val()
     response.send({"total": price})
   })
@@ -180,7 +185,8 @@ exports.getUserToday = functions.https.onRequest((request, response) => {
 
   var dayName = days[dayIndex]
 
-  admin.database().ref('orders/' + user + "/days/" + dayName).once('value', (snapshot) => {
+  var weekNumber = getWeekNumber(new Date())
+  admin.database().ref('orders/' + weekNumber + '/' + user + '/days/' + dayName).once('value', (snapshot) => {
     var userOrderForDay = snapshot.val()
     if (!userOrderForDay) {
       response.send(user + " has no order for " + dayName)
@@ -201,13 +207,14 @@ exports.getUserToday = functions.https.onRequest((request, response) => {
   })
 });
 
-exports.getAllOrdersTotal = functions.https.onRequest((request, response) => {
+exports.getLatestOrdersTotal = functions.https.onRequest((request, response) => {
   if (request.method !== "GET") {
     response.send("Are you sure you know what you're doing?")
     return
   }
 
-  admin.database().ref('orders').once('value', (snapshot) => {
+  var weekNumber = getWeekNumber(new Date())
+  admin.database().ref('orders/' + weekNumber).once('value', (snapshot) => {
     var orders = snapshot.val()
     if (!orders) {
       response.send("No orders")
@@ -227,13 +234,14 @@ exports.getAllOrdersTotal = functions.https.onRequest((request, response) => {
   })
 });
 
-exports.getAllOrders = functions.https.onRequest((request, response) => {
+exports.getLatestOrders = functions.https.onRequest((request, response) => {
   if (request.method !== "GET") {
     response.send("Are you sure you know what you're doing?")
     return
   }
 
-  admin.database().ref('orders').once('value', (snapshot) => {
+  var weekNumber = getWeekNumber(new Date())
+  admin.database().ref('orders/' + weekNumber).once('value', (snapshot) => {
     var orders = snapshot.val()
     if (!orders) {
       response.send("No orders")
@@ -271,3 +279,17 @@ exports.getAllOrders = functions.https.onRequest((request, response) => {
     response.send(nonDuplicates)
   })
 });
+
+function getWeekNumber(d) {
+    // Copy date so don't modify original
+    d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    // Set to nearest Thursday: current date + 4 - current day number
+    // Make Sunday's day number 7
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
+    // Get first day of year
+    var yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+    // Calculate full weeks to nearest Thursday
+    var weekNo = Math.ceil(( ( (d - yearStart) / 86400000) + 1)/7);
+    // Return array of year and week number
+    return String(d.getUTCFullYear()) + '-' + weekNo;
+}
