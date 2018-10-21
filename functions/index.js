@@ -73,19 +73,6 @@ exports.postOrder = functions.https.onRequest((request, response) => {
   });
 });
 
-exports.deleteLatestOrders = functions.https.onRequest((request, response) => {
-  if (request.method !== "DELETE") {
-    response.send("Are you sure you know what you're doing?")
-    return
-  }
-
-  var weekNumber = getWeekNumber(new Date())
-  var ordersInDb = admin.database().ref('orders/' + weekNumber)
-  ordersInDb.set({})
-
-  response.send("Orders deleted")
-});
-
 exports.deleteUserOrder = functions.https.onRequest((request, response) => {
   if (request.method !== "DELETE") {
     response.send("Are you sure you know what you're doing?")
