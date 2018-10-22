@@ -5,6 +5,20 @@ const admin = require('firebase-admin');
 
 admin.initializeApp();
 
+function getWeekNumber(d) {
+    // Copy date so don't modify original
+    d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    // Set to nearest Thursday: current date + 4 - current day number
+    // Make Sunday's day number 7
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
+    // Get first day of year
+    var yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
+    // Calculate full weeks to nearest Thursday
+    var weekNo = Math.ceil(( ( (d - yearStart) / 86400000) + 1)/7);
+    // Return array of year and week number
+    return String(d.getUTCFullYear()) + '-' + weekNo;
+}
+
 exports.postOrder = functions.https.onRequest((request, response) => {
   var user = request.body.user
   var rawOrder = request.body.order
@@ -64,6 +78,7 @@ exports.postOrder = functions.https.onRequest((request, response) => {
     var price = flattenedPrices.reduce((a, b) => a + b, 0);
 
     userOrder["total"] = price
+    userOrder["paid"] = false
 
     var weekNumber = getWeekNumber(new Date())
     var ordersInDb = admin.database().ref('orders/' + weekNumber + '/' + user)
@@ -75,13 +90,13 @@ exports.postOrder = functions.https.onRequest((request, response) => {
 
 exports.deleteUserOrder = functions.https.onRequest((request, response) => {
   if (request.method !== "DELETE") {
-    response.send("Are you sure you know what you're doing?")
+    response.status(400).send("Are you sure you know what you're doing?")
     return
   }
 
   var user = request.query.user
   if (!user) {
-    response.send("User not specified")
+    response.status(400).send("User not specified")
     return
   }
 
@@ -94,13 +109,13 @@ exports.deleteUserOrder = functions.https.onRequest((request, response) => {
 
 exports.getUserOrders = functions.https.onRequest((request, response) => {
   if (request.method !== "GET") {
-    response.send("Are you sure you know what you're doing?")
+    response.status(400).send("Are you sure you know what you're doing?")
     return
   }
 
   var user = request.query.user
   if (!user) {
-    response.send("User not specified")
+    response.status(400).send("User not specified")
     return
   }
 
@@ -126,7 +141,10 @@ exports.getUserOrders = functions.https.onRequest((request, response) => {
       filteredOrders[dayName] = allOrdersForDay
     })
 
+    var paidFlag = userOrder.paid || false
+
     var responseObject = {
+      "paid": paidFlag,
       "total": userOrder.total,
       "days": filteredOrders
     }
@@ -137,13 +155,13 @@ exports.getUserOrders = functions.https.onRequest((request, response) => {
 
 exports.getUserTotal = functions.https.onRequest((request, response) => {
   if (request.method !== "GET") {
-    response.send("Are you sure you know what you're doing?")
+    response.status(400).send("Are you sure you know what you're doing?")
     return
   }
 
   var user = request.query.user
   if (!user) {
-    response.send("User not specified")
+    response.status(400).send("User not specified")
     return
   }
 
@@ -156,13 +174,13 @@ exports.getUserTotal = functions.https.onRequest((request, response) => {
 
 exports.getUserToday = functions.https.onRequest((request, response) => {
   if (request.method !== "GET") {
-    response.send("Are you sure you know what you're doing?")
+    response.status(400).send("Are you sure you know what you're doing?")
     return
   }
 
   var user = request.query.user
   if (!user) {
-    response.send("User not specified")
+    response.status(400).send("User not specified")
     return
   }
 
@@ -196,9 +214,11 @@ exports.getUserToday = functions.https.onRequest((request, response) => {
 
 exports.getLatestOrdersTotal = functions.https.onRequest((request, response) => {
   if (request.method !== "GET") {
-    response.send("Are you sure you know what you're doing?")
+    response.status(400).send("Are you sure you know what you're doing?")
     return
   }
+
+  var unpaid = {}
 
   var weekNumber = getWeekNumber(new Date())
   admin.database().ref('orders/' + weekNumber).once('value', (snapshot) => {
@@ -214,16 +234,25 @@ exports.getLatestOrdersTotal = functions.https.onRequest((request, response) => 
       if (userTotal) {
           totals = totals + userTotal
       }
+
+      if (!orders[user]["paid"]) {
+        unpaid[user] = userTotal
+      }
     })
 
     var responseObject = { "totals": totals }
+
+    if (unpaid !== {}) {
+      responseObject["saracii"] = unpaid
+    }
+
     response.send(responseObject)
   })
 });
 
 exports.getLatestOrders = functions.https.onRequest((request, response) => {
   if (request.method !== "GET") {
-    response.send("Are you sure you know what you're doing?")
+    response.status(400).send("Are you sure you know what you're doing?")
     return
   }
 
@@ -275,16 +304,17 @@ exports.getLatestOrders = functions.https.onRequest((request, response) => {
   })
 });
 
-function getWeekNumber(d) {
-    // Copy date so don't modify original
-    d = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-    // Set to nearest Thursday: current date + 4 - current day number
-    // Make Sunday's day number 7
-    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay()||7));
-    // Get first day of year
-    var yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
-    // Calculate full weeks to nearest Thursday
-    var weekNo = Math.ceil(( ( (d - yearStart) / 86400000) + 1)/7);
-    // Return array of year and week number
-    return String(d.getUTCFullYear()) + '-' + weekNo;
-}
+exports.payUserOrder = functions.https.onRequest((request, response) => {
+  if (!request.method || !(["POST", "PUT", "PATCH"].includes(request.method))) {
+    response.status(400).send("Are you sure you know what you're doing?")
+    return
+  }
+
+  var user = request.query.user
+
+  var weekNumber = getWeekNumber(new Date())
+  var paidFlag = admin.database().ref('orders/' + weekNumber + '/' + user + '/paid')
+  paidFlag.set(true)
+
+  response.send("Order for " + user + " for " + weekNumber + " has been marked as paid")
+});
