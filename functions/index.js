@@ -235,7 +235,15 @@ exports.getLatestOrders = functions.https.onRequest((request, response) => {
       return
     }
 
-    var responseObject = {}
+    let nothing = []
+    var responseObject = {
+      "monday": nothing,
+      "tuesday": nothing,
+      "wednesday": nothing,
+      "thursday": nothing,
+      "friday": nothing
+    }
+
     Object.keys(orders).forEach(user => {
       var userObject = orders[user]["days"]
       Object.keys(userObject).forEach(daysKey => {
