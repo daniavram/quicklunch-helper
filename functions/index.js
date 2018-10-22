@@ -28,7 +28,7 @@ exports.postOrder = functions.https.onRequest((request, response) => {
   var regex = /(\w+(\+\w+)*)/gi
   var dayOrders = rawOrder.match(regex)
   dayOrders = dayOrders.map(element =>
-    element.toUpperCase().split('+').sort()
+    element.toUpperCase().split('+')
   )
 
   // this value for `nothing` was chosen because `_` is a regex friendly value
@@ -166,9 +166,18 @@ exports.getUserTotal = functions.https.onRequest((request, response) => {
   }
 
   var weekNumber = getWeekNumber(new Date())
-  admin.database().ref('orders/' + weekNumber + '/' + user + '/total').once('value', (snapshot) => {
-    var price = snapshot.val()
-    response.send({"total": price})
+  admin.database().ref('orders/' + weekNumber + '/' + user).once('value', (snapshot) => {
+    var userOrder = snapshot.val()
+
+    var price = userOrder.total
+    var paid = userOrder.paid
+
+    var responseObject = {
+      "paid": paid,
+      "total": price
+    }
+
+    response.send(responseObject)
   })
 });
 
@@ -317,4 +326,49 @@ exports.payUserOrder = functions.https.onRequest((request, response) => {
   paidFlag.set(true)
 
   response.send("Order for " + user + " for " + weekNumber + " has been marked as paid")
+});
+
+exports.getUserTodayForAssistant = functions.https.onRequest((request, response) => {
+  var user = request.query.user
+
+  var date = new Date()
+  var dayIndex = date.getDay()
+  var days = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
+
+  var dayName = days[dayIndex]
+
+  var weekNumber = getWeekNumber(new Date())
+  admin.database().ref('orders/' + weekNumber + '/' + user + '/days/' + dayName).once('value', (snapshot) => {
+    var userOrderForDay = snapshot.val()
+    if (!userOrderForDay) {
+      response.send("You have no food today honey")
+      return
+    }
+
+    var allOrdersForDay = userOrderForDay.map(day => { return day.menu.title })
+
+    var responseString = allOrdersForDay.join(' and ')
+
+    response.send(responseString)
+  })
+});
+
+exports.getUserTotalForAssistant = functions.https.onRequest((request, response) => {
+  var user = request.query.user
+
+  var weekNumber = getWeekNumber(new Date())
+  admin.database().ref('orders/' + weekNumber + '/' + user).once('value', (snapshot) => {
+    var userOrder = snapshot.val()
+
+    var integer = Math.floor(userOrder.total)
+
+    var responseString = ""
+    if (!userOrder.paid) {
+      responseString = "You have to pay " + integer + " lay"
+    } else {
+      responseString = "You have already paid, you handsome devil"
+    }
+
+    response.send(responseString)
+  })
 });
