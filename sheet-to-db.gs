@@ -90,7 +90,7 @@ function startSync() {
   //Get the currently active sheet
   var sheet = SpreadsheetApp.getActiveSheet()
 
-  var period = sheet.getRange(1, 1, 1, 1).getCell(1, 1).getValue()
+  var weekNumber = sheet.getRange(1, 1, 1, 1).getCell(1, 1).getValue()
 
   var days = {
     monday: getValuesFrom(sheet, 3),
@@ -101,7 +101,7 @@ function startSync() {
   }
 
   var menu = {
-    period: period,
+    weekNumber: weekNumber,
     days: days
   }
 
