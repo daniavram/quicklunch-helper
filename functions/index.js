@@ -15,8 +15,9 @@ function getWeekNumber(d) {
     var yearStart = new Date(Date.UTC(d.getUTCFullYear(),0,1));
     // Calculate full weeks to nearest Thursday
     var weekNo = Math.ceil(( ( (d - yearStart) / 86400000) + 1)/7);
+    var week = weekNo < 10 ? "0"+weekNo : String(weekNo)
     // Return array of year and week number
-    return String(d.getUTCFullYear()) + '-' + weekNo;
+    return String(d.getUTCFullYear()) + '-' + week;
 }
 
 exports.postOrder = functions.https.onRequest((request, response) => {
