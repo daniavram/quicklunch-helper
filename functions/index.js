@@ -22,14 +22,17 @@ function getWeekNumber(d) {
 
 function weekify(number) {
   var today = new Date()
-  var week = Number(number) < 10 ? "0"+weekNo : String(weekNo)
+  var week = Number(number) < 10 ? "0"+number : String(number)
   var value = String(today.getUTCFullYear()) + '-' + week;
   return value
 }
 
 function unwrapWeek(value, fallbackParameter) {
-  if (!value) { return fallbackParameter }
-  return weekify(value)
+  var returnValue = fallbackParameter
+  if (value) {
+    returnValue = weekify(value)
+  }
+  return returnValue
 }
 
 exports.postOrder = functions.https.onRequest((request, response) => {
@@ -144,6 +147,7 @@ exports.getUserOrders = functions.https.onRequest((request, response) => {
     admin.database().ref('orders/' + weekNumber + '/' + user).once('value', (snapshot) => {
       var userOrder = snapshot.val()
       var days = userOrder.days
+
       if (!userOrder || !days) {
         response.send(user + " has no orders")
         return
@@ -164,15 +168,23 @@ exports.getUserOrders = functions.https.onRequest((request, response) => {
 
       var paidFlag = userOrder.paid || false
 
+      var alphabetizedDays = {
+        "monday": filteredOrders.monday,
+        "tuesday": filteredOrders.tuesday,
+        "wednesday": filteredOrders.wednesday,
+        "thursday": filteredOrders.thursday,
+        "friday": filteredOrders.friday
+      }
+
       var responseObject = {
         "paid": paidFlag,
         "total": userOrder.total,
-        "days": filteredOrders
+        "days": alphabetizedDays
       }
 
       response.send(responseObject)
     })
-})
+  })
 });
 
 exports.getUserTotal = functions.https.onRequest((request, response) => {
