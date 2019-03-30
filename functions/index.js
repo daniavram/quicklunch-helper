@@ -20,6 +20,18 @@ function getWeekNumber(d) {
     return String(d.getUTCFullYear()) + '-' + week;
 }
 
+function weekify(number) {
+  var today = new Date()
+  var week = Number(number) < 10 ? "0"+weekNo : String(weekNo)
+  var value = String(today.getUTCFullYear()) + '-' + week;
+  return value
+}
+
+function unwrapWeek(value, fallbackParameter) {
+  if (!value) { return fallbackParameter }
+  return weekify(value)
+}
+
 exports.postOrder = functions.https.onRequest((request, response) => {
   var user = request.body.user
   var rawOrder = request.body.order
@@ -125,10 +137,9 @@ exports.getUserOrders = functions.https.onRequest((request, response) => {
     return
   }
 
-
   admin.database().ref('weeklyMenu').once('value', (weeklyMenuSnap) => {
     var weeklyMenu = weeklyMenuSnap.val();
-    var weekNumber = weeklyMenu.weekNumber
+    var weekNumber = unwrapWeek(request.query.week, weeklyMenu.weekNumber)
 
     admin.database().ref('orders/' + weekNumber + '/' + user).once('value', (snapshot) => {
       var userOrder = snapshot.val()
@@ -178,7 +189,7 @@ exports.getUserTotal = functions.https.onRequest((request, response) => {
 
   admin.database().ref('weeklyMenu').once('value', (weeklyMenuSnap) => {
     var weeklyMenu = weeklyMenuSnap.val();
-    var weekNumber = weeklyMenu.weekNumber
+    var weekNumber = unwrapWeek(request.query.week, weeklyMenu.weekNumber)
 
     admin.database().ref('orders/' + weekNumber + '/' + user).once('value', (snapshot) => {
       var userOrder = snapshot.val()
@@ -246,7 +257,7 @@ exports.getLatestOrdersTotal = functions.https.onRequest((request, response) => 
 
   admin.database().ref('weeklyMenu').once('value', (weeklyMenuSnap) => {
     var weeklyMenu = weeklyMenuSnap.val();
-    var weekNumber = weeklyMenu.weekNumber
+    var weekNumber = unwrapWeek(request.query.week, weeklyMenu.weekNumber)
 
     admin.database().ref('orders/' + weekNumber).once('value', (snapshot) => {
       var orders = snapshot.val()
@@ -286,7 +297,7 @@ exports.getLatestOrders = functions.https.onRequest((request, response) => {
 
   admin.database().ref('weeklyMenu').once('value', (weeklyMenuSnap) => {
     var weeklyMenu = weeklyMenuSnap.val();
-    var weekNumber = weeklyMenu.weekNumber
+    var weekNumber = unwrapWeek(request.query.week, weeklyMenu.weekNumber)
 
     admin.database().ref('orders/' + weekNumber).once('value', (snapshot) => {
       var orders = snapshot.val()
