@@ -259,7 +259,7 @@ exports.getUserToday = functions.https.onRequest((request, response) => {
   })
 });
 
-exports.getLatestOrdersTotal = functions.https.onRequest((request, response) => {
+exports.getOrdersTotal = functions.https.onRequest((request, response) => {
   if (request.method !== "GET") {
     response.status(400).send("Are you sure you know what you're doing?")
     return
@@ -301,7 +301,7 @@ exports.getLatestOrdersTotal = functions.https.onRequest((request, response) => 
   });
 });
 
-exports.getLatestOrders = functions.https.onRequest((request, response) => {
+exports.getOrders = functions.https.onRequest((request, response) => {
   if (request.method !== "GET") {
     response.status(400).send("Are you sure you know what you're doing?")
     return
