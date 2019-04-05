@@ -46,6 +46,8 @@ exports.postOrder = functions.https.onRequest((request, response) => {
   dayOrders = dayOrders.map(element =>
     element.toUpperCase().split('+')
   )
+  var separator = request.body.oneLinerSeparator
+  separator = separator ? String(separator) : " "
 
   // this value for `nothing` was chosen because `_` is a regex friendly value
   // for var regex defined above
@@ -100,6 +102,15 @@ exports.postOrder = functions.https.onRequest((request, response) => {
     var weekNumber = weeklyMenu.weekNumber
     var ordersInDb = admin.database().ref('orders/' + weekNumber + '/' + user)
     ordersInDb.set(userOrder)
+
+    var oneLineOrder =
+      String(dayOrders[0] || separator) + separator +
+      String(dayOrders[1] || separator) + separator +
+      String(dayOrders[2] || separator) + separator +
+      String(dayOrders[3] || separator) + separator +
+      String(dayOrders[4] || separator) + separator +
+      String(price)
+    userOrder["oneLineOrder"] = oneLineOrder.replace(/,/g, ' + ')
 
     response.send(userOrder)
   });

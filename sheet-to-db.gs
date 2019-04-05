@@ -57,8 +57,14 @@ function getValuesFrom(sheet, column) {
     var menuValue = valuesColumn[index][0].toString()
     var menuValueRegex = new RegExp("(.*?)\\s+(\\d+[\\.,]\\d+)", "gi")
     var valueMatches = menuValueRegex.exec(menuValue)
-    var courseName = valueMatches[1]
-    var coursePrice = valueMatches[2]
+
+    var courseName = ""
+    var coursePrice = ""
+
+    if (valueMatches) {
+      courseName = valueMatches[1]
+      coursePrice = valueMatches[2]
+    }
 
     var course = {
       name: courseName,
