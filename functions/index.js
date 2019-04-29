@@ -35,6 +35,13 @@ function unwrapWeek(value, fallbackParameter) {
   return returnValue
 }
 
+exports.menu = functions.https.onRequest((request, response) => {
+  admin.database().ref('weeklyMenu').once('value', (weeklyMenuSnap) => {
+    var weeklyMenu = weeklyMenuSnap.val();
+    response.send(weeklyMenu);
+  })
+});
+
 exports.postOrder = functions.https.onRequest((request, response) => {
   var user = request.body.user
   var rawOrder = request.body.order
